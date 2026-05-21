@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Fridgy</string>
-    <string name="title_activity_main">Fridgy</string>
-    <string name="package_name">com.fridgy.recipeapp</string>
-    <string name="custom_url_scheme">com.fridgy.recipeapp</string>
-</resources>
