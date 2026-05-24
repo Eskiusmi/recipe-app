@@ -440,54 +440,89 @@ body::after {
 /* ── Loading ── */
 .loading {
   display: none;
-  padding: 72px 0;
+  padding: 80px 0 64px;
   text-align: center;
 }
-.candle-wrap {
+.scanner-wrap {
   position: relative;
-  width: 60px; height: 60px;
-  margin: 0 auto 28px;
+  width: 80px; height: 80px;
+  margin: 0 auto 32px;
 }
-.candle-ring {
+.scanner-svg {
   position: absolute; inset: 0;
-  border-radius: 50%;
-  border: 1px solid transparent;
+  width: 100%; height: 100%;
+  overflow: visible;
 }
-.candle-ring:nth-child(1) {
-  border-top-color: var(--gold);
-  animation: spin 2s linear infinite;
+.scanner-rect {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.2;
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  animation: drawRect 1s cubic-bezier(.4,0,.2,1) forwards,
+             rectPulse 2.5s 1s ease-in-out infinite;
 }
-.candle-ring:nth-child(2) {
-  inset: 8px;
-  border-right-color: rgba(201,169,110,.4);
-  animation: spin 3s linear infinite reverse;
-}
-.candle-ring:nth-child(3) {
-  inset: 16px;
-  border-bottom-color: rgba(201,169,110,.15);
-  animation: spin 4s linear infinite;
-}
-.candle-flame {
+.scan-line {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
-  animation: flamePulse 1.5s ease-in-out infinite;
+  left: 4px; right: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  box-shadow: 0 0 8px 1px rgba(201,169,110,.5);
+  animation: scanDown 1.8s 0.8s ease-in-out infinite;
 }
+.scanner-corner {
+  position: absolute;
+  width: 12px; height: 12px;
+  border-color: var(--gold2);
+  border-style: solid;
+  opacity: 0;
+  animation: cornerIn .4s ease forwards;
+}
+.scanner-corner.tl { top: 0; left: 0; border-width: 1.5px 0 0 1.5px; animation-delay: .9s; }
+.scanner-corner.tr { top: 0; right: 0; border-width: 1.5px 1.5px 0 0; animation-delay: 1s; }
+.scanner-corner.bl { bottom: 0; left: 0; border-width: 0 0 1.5px 1.5px; animation-delay: 1.1s; }
+.scanner-corner.br { bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; animation-delay: 1.2s; }
+.sp {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0;
+}
+.sp:nth-child(1) { top: 30%; left: 25%; animation: particleFloat 2.4s 1.2s ease-in-out infinite; }
+.sp:nth-child(2) { top: 55%; left: 60%; animation: particleFloat 2s 1.5s ease-in-out infinite; }
+.sp:nth-child(3) { top: 25%; left: 65%; animation: particleFloat 2.8s 1s ease-in-out infinite; }
 .loading-text {
   font-family: var(--fd);
   font-size: 22px;
   font-weight: 300;
   font-style: italic;
   color: var(--chalk2);
-  margin-bottom: 8px;
-  transition: opacity .3s;
+  margin-bottom: 10px;
+  letter-spacing: .02em;
+  min-height: 28px;
 }
 .loading-sub {
   font-family: var(--fm);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--chalk4);
-  letter-spacing: .1em;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.loading-bar-wrap {
+  width: 120px; height: 1px;
+  background: var(--ink5);
+  margin: 16px auto 0;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.loading-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  border-radius: 999px;
+  box-shadow: 0 0 6px rgba(201,169,110,.6);
+  width: 0%;
+  transition: width .4s ease;
 }
 
 /* ── Error ── */
@@ -999,14 +1034,17 @@ body::after {
 .history-item-recipes { font-size: 12px; color: var(--chalk3); line-height: 1.5; font-weight: 300; }
 
 /* ── Keyframes ── */
-@keyframes fadeUp   { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
-@keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeUp     { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeDown   { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
 @keyframes expandLine { from{width:0;opacity:0} to{width:40px;opacity:.6} }
-@keyframes popIn    { from{opacity:0;transform:scale(.65)} to{opacity:1;transform:scale(1)} }
-@keyframes spin     { to{transform:rotate(360deg)} }
-@keyframes flamePulse { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1} 50%{transform:translate(-50%,-50%) scale(.8);opacity:.6} }
-@keyframes bdin     { from{opacity:0} to{opacity:1} }
-@keyframes sheetUp  { from{transform:translateY(100%)} to{transform:translateY(0)} }
+@keyframes popIn      { from{opacity:0;transform:scale(.65)} to{opacity:1;transform:scale(1)} }
+@keyframes bdin       { from{opacity:0} to{opacity:1} }
+@keyframes sheetUp    { from{transform:translateY(100%)} to{transform:translateY(0)} }
+@keyframes drawRect   { to { stroke-dashoffset: 0; } }
+@keyframes rectPulse  { 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes scanDown   { 0%{top:4px;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:74px;opacity:0} }
+@keyframes cornerIn   { from{opacity:0;transform:scale(.4)} to{opacity:1;transform:scale(1)} }
+@keyframes particleFloat { 0%,100%{opacity:0;transform:translateY(0) scale(1)} 20%,80%{opacity:.7} 50%{opacity:1;transform:translateY(-9px) scale(1.4)} }
 </style>
 </head>
 <body class="lang-zh">
@@ -1089,14 +1127,22 @@ body::after {
 
   <!-- Loading -->
   <div class="loading" id="loading">
-    <div class="candle-wrap">
-      <div class="candle-ring"></div>
-      <div class="candle-ring"></div>
-      <div class="candle-ring"></div>
-      <div class="candle-flame">🕯</div>
+    <div class="scanner-wrap">
+      <svg class="scanner-svg" viewBox="0 0 80 80">
+        <rect class="scanner-rect" x="2" y="2" width="76" height="76" rx="4"/>
+      </svg>
+      <div class="scan-line"></div>
+      <div class="scanner-corner tl"></div>
+      <div class="scanner-corner tr"></div>
+      <div class="scanner-corner bl"></div>
+      <div class="scanner-corner br"></div>
+      <div class="sp"></div>
+      <div class="sp"></div>
+      <div class="sp"></div>
     </div>
-    <div class="loading-text" id="loadingText">识别食材中</div>
-    <div class="loading-sub" id="loadingSub">通常需要 10-15 秒</div>
+    <div class="loading-text" id="loadingText"></div>
+    <div class="loading-sub" id="loadingSub"></div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loadingBar"></div></div>
   </div>
 
   <!-- Error -->
@@ -1250,9 +1296,64 @@ async function fixImageOrientation(file){return new Promise(r=>{const img=new Im
 
 // ── Screens ──
 function showScreen(n){['screen-upload','screen-manual','screen-result','screen-history'].forEach(id=>{document.getElementById(id).style.display='none'});if(n){const el=document.getElementById(n);el.style.display='block';el.style.animation='none';requestAnimationFrame(()=>{el.style.animation=''})}}
-function showLoading(txt,sub){document.getElementById('loadingText').textContent=txt;document.getElementById('loadingSub').textContent=sub;document.getElementById('loading').style.display='block';isLoading=true;document.getElementById('langTrigger').disabled=true;document.getElementById('langDropdown').classList.remove('open')}
-function hideLoading(){document.getElementById('loading').style.display='none';if(tipTimer){clearInterval(tipTimer);tipTimer=null}isLoading=false;document.getElementById('langTrigger').disabled=false}
-function startTips(){if(tipTimer)clearInterval(tipTimer);const tips=t().loadingTips;let i=0;tipTimer=setInterval(()=>{i=(i+1)%tips.length;const el=document.getElementById('loadingText');el.style.opacity='0';setTimeout(()=>{el.textContent=tips[i];el.style.opacity='1'},200)},3200)}
+// Typewriter effect for loading text
+function typewrite(el, text, speed=38){
+  el.textContent='';
+  let i=0;
+  const tick=()=>{if(i<text.length){el.textContent+=text[i++];setTimeout(tick,speed)}};
+  tick();
+}
+// Animate progress bar
+let barTimer=null;
+function animateBar(){
+  const bar=document.getElementById('loadingBar');
+  if(!bar)return;
+  bar.style.transition='none';bar.style.width='0%';
+  const steps=[[400,35],[2000,55],[4000,70],[7000,82],[11000,90]];
+  barTimer=[];
+  steps.forEach(([delay,w])=>{
+    barTimer.push(setTimeout(()=>{bar.style.transition='width .8s ease';bar.style.width=w+'%'},delay));
+  });
+}
+function showLoading(txt,sub){
+  const el=document.getElementById('loadingText');
+  typewrite(el,txt);
+  document.getElementById('loadingSub').textContent=sub;
+  // Reset scanner animation by re-inserting the element
+  const wrap=document.querySelector('.scanner-wrap');
+  if(wrap){const clone=wrap.cloneNode(true);wrap.parentNode.replaceChild(clone,wrap);}
+  document.getElementById('loading').style.display='block';
+  isLoading=true;
+  document.getElementById('langTrigger').disabled=true;
+  document.getElementById('langDropdown').classList.remove('open');
+  animateBar();
+}
+function hideLoading(){
+  document.getElementById('loading').style.display='none';
+  if(tipTimer){clearInterval(tipTimer);tipTimer=null}
+  if(barTimer){barTimer.forEach(clearTimeout);barTimer=null}
+  const bar=document.getElementById('loadingBar');
+  if(bar){bar.style.transition='width .3s ease';bar.style.width='100%';setTimeout(()=>{bar.style.width='0%'},300)}
+  isLoading=false;
+  document.getElementById('langTrigger').disabled=false;
+}
+function startTips(){
+  if(tipTimer)clearInterval(tipTimer);
+  const tips=t().loadingTips;
+  let i=0;
+  tipTimer=setInterval(()=>{
+    i=(i+1)%tips.length;
+    const el=document.getElementById('loadingText');
+    // Fade out, then typewrite new text
+    el.style.opacity='0';
+    el.style.transition='opacity .25s';
+    setTimeout(()=>{
+      el.style.transition='';
+      el.style.opacity='1';
+      typewrite(el,tips[i],30);
+    },260);
+  },3500);
+}
 function showError(m,a=[]){document.getElementById('errorMsg').textContent=m;document.getElementById('errorActions').innerHTML=a.map(x=>`<button class="error-btn ${x.cls}" onclick="${x.fn}">${x.label}</button>`).join('');document.getElementById('errorBox').style.display='block'}
 function hideError(){document.getElementById('errorBox').style.display='none'}
 
