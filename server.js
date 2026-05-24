@@ -18,12 +18,12 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.random().toString(36).slice(2) + path.extname(file.originalname))
 });
 const upload = multer({
   storage,
@@ -193,22 +193,30 @@ function parseJSON(text) {
   return JSON.parse(clean);
 }
 
-// 接口1：拍照识别+生成（一次Claude调用搞定）
-app.post('/detect-and-generate', upload.single('image'), async (req, res) => {
+// 接口1：拍照识别+生成（支持多图）
+app.post('/detect-and-generate', upload.array('images', 5), async (req, res) => {
   try {
-    if (!req.file) return res.json({ success: false, error: 'no_image' });
+    if (!req.files || req.files.length === 0) return res.json({ success: false, error: 'no_image' });
     const lang = SUPPORTED_LANGS.includes(req.body.lang) ? req.body.lang : 'zh';
-    const imagePath = req.file.path;
-    const imageData = fs.readFileSync(imagePath).toString('base64');
-    const mimeType = req.file.mimetype;
-
     const opts = {
       servings: req.body.servings || '1-2',
       dietary: req.body.dietary ? JSON.parse(req.body.dietary) : [],
       style: req.body.style || ''
     };
+    console.log(`[detect-and-generate] lang=${lang}, images=${req.files.length}`);
 
-    console.log(`[detect-and-generate] lang=${lang}, servings=${opts.servings}`);
+    // 构建多图内容
+    const imageContent = req.files.map(file => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: file.mimetype,
+        data: fs.readFileSync(file.path).toString('base64')
+      }
+    }));
+
+    // 清理上传文件
+    req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
 
     const response = await client.messages.create({
       model: MODEL,
@@ -216,13 +224,11 @@ app.post('/detect-and-generate', upload.single('image'), async (req, res) => {
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: imageData } },
+          ...imageContent,
           { type: 'text', text: buildDetectAndGeneratePrompt(lang, opts) }
         ]
       }]
     });
-
-    fs.unlinkSync(imagePath);
 
     const text = response.content.map(c => c.text || '').join('');
     console.log('claude response:', text.substring(0, 200));
@@ -236,6 +242,8 @@ app.post('/detect-and-generate', upload.single('image'), async (req, res) => {
 
   } catch (err) {
     console.error('[detect-and-generate error]', err.message);
+    // 清理文件
+    if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
     res.json({ success: false, error: 'detect_failed' });
   }
 });
