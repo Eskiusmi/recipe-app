@@ -21,6 +21,95 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+// ── IP 限流 ──
+const RATE_LIMIT = {
+  DAILY_MAX: 20,        // 每个IP每天最多20次生成（包括拍照识别）
+  SUGGEST_MAX: 50,      // 食材推荐接口单独限流（轻量操作，放宽）
+  WINDOW_MS: 24 * 60 * 60 * 1000,  // 24小时窗口
+  CLEANUP_INTERVAL: 60 * 60 * 1000  // 每小时清理过期记录
+};
+
+const ipStore = new Map(); // { ip: { count, suggest_count, resetAt } }
+
+function getClientIP(req) {
+  // Render / 代理环境取真实IP
+  return (
+    req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+    req.headers['x-real-ip'] ||
+    req.socket.remoteAddress ||
+    'unknown'
+  );
+}
+
+function checkRateLimit(req, res, type = 'generate') {
+  const ip = getClientIP(req);
+  const now = Date.now();
+  let record = ipStore.get(ip);
+
+  // 初始化或窗口已过期 → 重置
+  if (!record || now > record.resetAt) {
+    record = { count: 0, suggestCount: 0, resetAt: now + RATE_LIMIT.WINDOW_MS };
+    ipStore.set(ip, record);
+  }
+
+  if (type === 'suggest') {
+    if (record.suggestCount >= RATE_LIMIT.SUGGEST_MAX) {
+      const resetIn = Math.ceil((record.resetAt - now) / 1000 / 60);
+      res.status(429).json({
+        success: false,
+        error: 'rate_limit',
+        message: `Too many requests. Resets in ${resetIn} minutes.`,
+        resetIn
+      });
+      return false;
+    }
+    record.suggestCount++;
+  } else {
+    if (record.count >= RATE_LIMIT.DAILY_MAX) {
+      const resetIn = Math.ceil((record.resetAt - now) / 1000 / 60);
+      res.status(429).json({
+        success: false,
+        error: 'rate_limit',
+        message: `Daily limit reached (${RATE_LIMIT.DAILY_MAX} requests/day). Resets in ${resetIn} minutes.`,
+        resetIn,
+        limit: RATE_LIMIT.DAILY_MAX
+      });
+      return false;
+    }
+    record.count++;
+  }
+
+  ipStore.set(ip, record);
+  return true;
+}
+
+// 定期清理过期记录，避免内存泄漏
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [ip, record] of ipStore.entries()) {
+    if (now > record.resetAt) { ipStore.delete(ip); cleaned++; }
+  }
+  if (cleaned > 0) console.log(`[rate-limit] Cleaned ${cleaned} expired records. Active IPs: ${ipStore.size}`);
+}, RATE_LIMIT.CLEANUP_INTERVAL);
+
+// 查看当前限流状态（可选，方便调试）
+app.get('/api/status', (req, res) => {
+  const ip = getClientIP(req);
+  const record = ipStore.get(ip);
+  const now = Date.now();
+  if (!record || now > record.resetAt) {
+    return res.json({ ip, used: 0, limit: RATE_LIMIT.DAILY_MAX, remaining: RATE_LIMIT.DAILY_MAX });
+  }
+  res.json({
+    ip,
+    used: record.count,
+    limit: RATE_LIMIT.DAILY_MAX,
+    remaining: Math.max(0, RATE_LIMIT.DAILY_MAX - record.count),
+    resetsIn: Math.ceil((record.resetAt - now) / 1000 / 60) + ' minutes'
+  });
+});
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.random().toString(36).slice(2) + path.extname(file.originalname))
@@ -208,6 +297,7 @@ function parseJSON(text) {
 // 接口1：拍照识别+生成（支持多图）
 app.post('/detect-and-generate', upload.array('images', 5), async (req, res) => {
   try {
+    if (!checkRateLimit(req, res, 'generate')) return;
     if (!req.files || req.files.length === 0) return res.json({ success: false, error: 'no_image' });
     const lang = SUPPORTED_LANGS.includes(req.body.lang) ? req.body.lang : 'zh';
     const opts = {
@@ -264,6 +354,7 @@ app.post('/detect-and-generate', upload.array('images', 5), async (req, res) => 
 // 接口2：纯文本生成菜谱（手动输入 / 重新生成）
 app.post('/generate', async (req, res) => {
   try {
+    if (!checkRateLimit(req, res, 'generate')) return;
     const { ingredients, lang = 'zh', servings, dietary, style, condiments } = req.body;
     if (!ingredients || ingredients.length === 0) return res.json({ success: false, error: 'no_ingredients' });
     const safeLang = SUPPORTED_LANGS.includes(lang) ? lang : 'zh';
@@ -289,6 +380,7 @@ app.post('/generate', async (req, res) => {
 // 接口3：食材推荐
 app.post('/suggest', async (req, res) => {
   try {
+    if (!checkRateLimit(req, res, 'suggest')) return;
     const { ingredients, lang = 'zh' } = req.body;
     if (!ingredients || ingredients.length === 0) return res.json({ success: false, suggestions: [] });
     const safeLang = SUPPORTED_LANGS.includes(lang) ? lang : 'zh';
