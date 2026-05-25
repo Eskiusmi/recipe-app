@@ -1309,7 +1309,9 @@ async function runFromPhoto() {
     fd.append('dietary', JSON.stringify(selectedDietary)); fd.append('style', selectedStyle);
     fd.append('condiments', JSON.stringify(userCondiments)); // ← 传调料
     const res = await fetch(`${API_BASE}/detect-and-generate`, { method:'POST', body: fd });
-    if (reqId !== currentRequestId) return; if (!res.ok) throw { type:'network' };
+    if (reqId !== currentRequestId) return;
+    if (res.status === 429) { const d = await res.json(); throw { type:'rate_limit', resetIn: d.resetIn }; }
+    if (!res.ok) throw { type:'network' };
     const data = await res.json(); if (!data.success) throw { type:'api', msg: data.error };
     ingredients = [...data.data.ingredients];
     renderResult(data.data, true); showScreen('screen-result');
@@ -1328,7 +1330,9 @@ async function generateRecipes() {
       method: 'POST', headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ ingredients, lang: currentLang, servings: selectedServings, dietary: selectedDietary, style: selectedStyle, condiments: userCondiments })
     });
-    if (reqId !== currentRequestId) return; if (!res.ok) throw { type:'network' };
+    if (reqId !== currentRequestId) return;
+    if (res.status === 429) { const d = await res.json(); throw { type:'rate_limit', resetIn: d.resetIn }; }
+    if (!res.ok) throw { type:'network' };
     const data = await res.json(); if (!data.success) throw { type:'api' };
     renderResult(data.data, true); showScreen('screen-result');
   } catch (err) {
@@ -1340,6 +1344,17 @@ async function generateRecipes() {
 
 function handleError(err, retryFn) {
   const tx = t();
+  if (err.type === 'rate_limit') {
+    const mins = err.resetIn || 60;
+    const msg = {
+      zh: `今日使用次数已达上限，${mins} 分钟后重置`,
+      en: `Daily limit reached. Resets in ${mins} minutes`,
+      fr: `Limite quotidienne atteinte. Réinitialisation dans ${mins} minutes`,
+      es: `Límite diario alcanzado. Se restablece en ${mins} minutos`
+    }[currentLang] || `Rate limit reached. Resets in ${mins} minutes`;
+    showError(msg, []);
+    return;
+  }
   if (err.type === 'network') showError(tx.errNetwork, [{ label:tx.errRetry, cls:'error-btn-retry', fn:retryFn }, { label:tx.errManual, cls:'error-btn-manual', fn:'goManual()' }]);
   else if (err.msg === 'no_ingredients') showError(tx.errNoIngredients, [{ label:tx.errRetake, cls:'error-btn-retry', fn:retryFn }, { label:tx.errManual, cls:'error-btn-manual', fn:'goManual()' }]);
   else showError(tx.errDetect, [{ label:tx.errRetry, cls:'error-btn-retry', fn:retryFn }, { label:tx.errManual, cls:'error-btn-manual', fn:'goManual()' }]);
