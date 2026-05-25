@@ -43,6 +43,12 @@ const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'es'];
 
 // ── 识别+生成一体化 Prompt ──
 function buildDetectAndGeneratePrompt(lang, opts = {}) {
+  const condimentLine = opts.condiments && opts.condiments.length > 0
+    ? (lang === 'zh' ? `可用调料：${opts.condiments.join('、')}` 
+       : lang === 'fr' ? `Condiments disponibles : ${opts.condiments.join(', ')}`
+       : lang === 'es' ? `Condimentos disponibles: ${opts.condiments.join(', ')}`
+       : `Available condiments: ${opts.condiments.join(', ')}`)
+    : (lang === 'zh' ? '基础调料（盐、油、酱油、醋、葱姜蒜）默认有' : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available');
   const servings = opts.servings || '1-2';
   const dietary = opts.dietary || [];
   const style = opts.style || '';
@@ -128,6 +134,12 @@ JSON estricto:
 }
 
 function buildTextGeneratePrompt(ingredients, lang, opts = {}) {
+  const condimentLine = opts.condiments && opts.condiments.length > 0
+    ? (lang === 'zh' ? `可用调料：${opts.condiments.join('、')}` 
+       : lang === 'fr' ? `Condiments disponibles : ${opts.condiments.join(', ')}`
+       : lang === 'es' ? `Condimentos disponibles: ${opts.condiments.join(', ')}`
+       : `Available condiments: ${opts.condiments.join(', ')}`)
+    : (lang === 'zh' ? '基础调料（盐、油、酱油、醋、葱姜蒜）默认有' : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available');
   const servings = opts.servings || '1-2';
   const dietary = opts.dietary || [];
   const style = opts.style || '';
@@ -152,22 +164,22 @@ function buildTextGeneratePrompt(ingredients, lang, opts = {}) {
 
   const prompts = {
     zh: `食材：${ingredients.join('、')}
-推荐3道${servings}人份菜谱，30分钟内。盐油酱醋葱姜蒜默认有。3道风格不同。卡路里和时间返回纯数字。
+推荐3道${servings}人份菜谱，30分钟内。${condimentLine}。3道风格不同。卡路里和时间返回纯数字。
 ${dietLines.length ? '限制：' + dietLines.join('，') : ''}${styleLine ? ' 偏好：' + styleLine : ''}
 JSON：{"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单/中等/较难","calories":250,"ingredients":["食材"],"steps":["步骤1","步骤2"],"tip":"技巧"},...]}`,
 
     en: `Ingredients: ${ingredients.join(', ')}
-3 recipes for ${servings} people, ≤30min. Salt/oil/soy/garlic available. Vary styles. Calories and time as pure numbers.
+3 recipes for ${servings} people, ≤30min. ${condimentLine}. Vary styles. Calories and time as pure numbers.
 ${dietLines.length ? 'Dietary: ' + dietLines.join(', ') : ''}${styleLine ? ' Style: ' + styleLine : ''}
 JSON: {"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy/Medium/Hard","calories":250,"ingredients":["ing"],"steps":["Step 1"],"tip":"Tip"},...]}`,
 
     fr: `Ingrédients : ${ingredients.join(', ')}
-3 recettes pour ${servings} pers., ≤30min. Sel/huile/ail disponibles. Varier. Calories et temps en nombres.
+3 recettes pour ${servings} pers., ≤30min. ${condimentLine}. Varier. Calories et temps en nombres.
 ${dietLines.length ? 'Régime : ' + dietLines.join(', ') : ''}${styleLine ? ' Style : ' + styleLine : ''}
 JSON : {"recipes":[{"name":"Nom","time_min":15,"difficulty":"Facile/Moyen/Difficile","calories":250,"ingredients":["ing"],"steps":["Étape"],"tip":"Conseil"},...]}`,
 
     es: `Ingredientes: ${ingredients.join(', ')}
-3 recetas para ${servings} pers., ≤30min. Sal/aceite/ajo disponibles. Variar. Calorías y tiempo como números.
+3 recetas para ${servings} pers., ≤30min. ${condimentLine}. Variar. Calorías y tiempo como números.
 ${dietLines.length ? 'Dieta: ' + dietLines.join(', ') : ''}${styleLine ? ' Estilo: ' + styleLine : ''}
 JSON: {"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil/Medio/Difícil","calories":250,"ingredients":["ing"],"steps":["Paso"],"tip":"Consejo"},...]}`,
   };
@@ -201,7 +213,8 @@ app.post('/detect-and-generate', upload.array('images', 5), async (req, res) => 
     const opts = {
       servings: req.body.servings || '1-2',
       dietary: req.body.dietary ? JSON.parse(req.body.dietary) : [],
-      style: req.body.style || ''
+      style: req.body.style || '',
+      condiments: req.body.condiments ? JSON.parse(req.body.condiments) : []
     };
     console.log(`[detect-and-generate] lang=${lang}, images=${req.files.length}`);
 
@@ -251,7 +264,7 @@ app.post('/detect-and-generate', upload.array('images', 5), async (req, res) => 
 // 接口2：纯文本生成菜谱（手动输入 / 重新生成）
 app.post('/generate', async (req, res) => {
   try {
-    const { ingredients, lang = 'zh', servings, dietary, style } = req.body;
+    const { ingredients, lang = 'zh', servings, dietary, style, condiments } = req.body;
     if (!ingredients || ingredients.length === 0) return res.json({ success: false, error: 'no_ingredients' });
     const safeLang = SUPPORTED_LANGS.includes(lang) ? lang : 'zh';
 
