@@ -176,8 +176,8 @@ function buildDetectAndGeneratePrompt(lang, opts = {}) {
 ${dietLines.length ? '8. 饮食限制：\n' + dietLines.join('\n') : ''}
 ${styleLine ? '烹饪偏好：' + styleLine + '（至少1道）' : ''}
 
-严格按JSON回复，不要其他文字：
-{"ingredients":["食材1","食材2"],"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单","calories":250,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3","步骤4","步骤5"],"tip":"技巧"},{"name":"菜名","time_min":20,"difficulty":"中等","calories":300,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧"},{"name":"菜名","time_min":25,"difficulty":"简单","calories":200,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧"}]}`,
+严格按JSON回复，不要其他文字。search_query字段是用于在B站/YouTube搜索该菜谱教程的关键词（如"番茄炒蛋 做法"）：
+{"ingredients":["食材1","食材2"],"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单","calories":250,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3","步骤4","步骤5"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":20,"difficulty":"中等","calories":300,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":25,"difficulty":"简单","calories":200,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧","search_query":"菜名 做法"}]}`,
 
     en: `Look at this image carefully and identify all visible ingredients.
 
@@ -194,8 +194,8 @@ Rules:
 ${dietLines.length ? '8. Dietary:\n' + dietLines.join('\n') : ''}
 ${styleLine ? 'Style preference: ' + styleLine + ' (at least 1)' : ''}
 
-Reply strictly in JSON:
-{"ingredients":["ing1","ing2"],"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy","calories":250,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3","Step 4","Step 5"],"tip":"Tip"},{"name":"Name","time_min":20,"difficulty":"Medium","calories":300,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip"},{"name":"Name","time_min":25,"difficulty":"Easy","calories":200,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip"}]}`,
+Reply strictly in JSON. search_query is a YouTube search keyword for the recipe (e.g. "tomato egg stir fry recipe"):
+{"ingredients":["ing1","ing2"],"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy","calories":250,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3","Step 4","Step 5"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":20,"difficulty":"Medium","calories":300,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":25,"difficulty":"Easy","calories":200,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip","search_query":"Name recipe"}]}`,
 
     fr: `Observez cette image et identifiez tous les ingrédients visibles.
 
@@ -216,8 +216,8 @@ Reglas: 1. Solo ingredientes visibles 2. Deduplicar 3. Variar estilos 4. ≤30 m
 ${dietLines.length ? '8. Dieta:\n' + dietLines.join('\n') : ''}
 ${styleLine ? 'Estilo: ' + styleLine : ''}
 
-JSON estricto:
-{"ingredients":["ing1"],"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil","calories":250,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo"},{"name":"Nombre","time_min":20,"difficulty":"Medio","calories":300,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo"},{"name":"Nombre","time_min":25,"difficulty":"Fácil","calories":200,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo"}]}`
+JSON estricto. search_query = palabra clave YouTube para buscar la receta (ej: "huevos tomate receta"):
+{"ingredients":["ing1"],"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil","calories":250,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":20,"difficulty":"Medio","calories":300,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":25,"difficulty":"Fácil","calories":200,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"}]}`
   };
   return prompts[lang] || prompts.zh;
 }
