@@ -132,22 +132,43 @@ const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'es'];
 
 // ── 识别+生成一体化 Prompt ──
 function buildDetectAndGeneratePrompt(lang, opts = {}) {
-  const condimentLine = opts.condiments && opts.condiments.length > 0
-    ? (lang === 'zh' ? `可用调料：${opts.condiments.join('、')}` 
-       : lang === 'fr' ? `Condiments disponibles : ${opts.condiments.join(', ')}`
-       : lang === 'es' ? `Condimentos disponibles: ${opts.condiments.join(', ')}`
-       : `Available condiments: ${opts.condiments.join(', ')}`)
-    : (lang === 'zh' ? '基础调料（盐、油、酱油、醋、葱姜蒜）默认有' : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available');
   const servings = opts.servings || '1-2';
   const dietary = opts.dietary || [];
   const style = opts.style || '';
+  const condiments = opts.condiments && opts.condiments.length > 0 ? opts.condiments : null;
 
+  // 饮食限制 — 强化措辞，明确冲突处理规则
   const dietaryRules = {
-    zh: { vegetarian:'素食（不含肉类海鲜）', lowCal:'低卡（每道≤300卡）', noSpicy:'不辣', noSeafood:'无海鲜', noNuts:'无坚果' },
-    en: { vegetarian:'Vegetarian (no meat/seafood)', lowCal:'Low-cal (≤300cal/dish)', noSpicy:'Not spicy', noSeafood:'No seafood', noNuts:'No nuts' },
-    fr: { vegetarian:'Végétarien', lowCal:'Léger (≤300cal)', noSpicy:'Non épicé', noSeafood:'Sans fruits de mer', noNuts:'Sans noix' },
-    es: { vegetarian:'Vegetariano', lowCal:'Bajo en calorías (≤300cal)', noSpicy:'Sin picante', noSeafood:'Sin mariscos', noNuts:'Sin frutos secos' }
+    zh: {
+      vegetarian: '【强制素食】所有菜谱必须不含任何肉类（猪牛羊鸡鸭鱼虾等）。如果食材中有肉类，这些食材必须直接忽略，不得出现在任何菜谱中。',
+      lowCal:     '【强制低卡】每道菜热量必须≤300卡，少油少糖少淀粉。',
+      noSpicy:    '【强制不辣】所有菜谱和步骤中绝对不能使用辣椒、花椒、辣酱等任何辛辣调料。如果食材中有辣椒，必须忽略该食材。',
+      noSeafood:  '【强制无海鲜】所有菜谱不含鱼虾蟹贝等海鲜。如果食材中有海鲜，必须忽略。',
+      noNuts:     '【强制无坚果】所有菜谱不含花生、腰果、核桃等坚果。如果食材中有坚果，必须忽略。'
+    },
+    en: {
+      vegetarian: '[MANDATORY VEGETARIAN] All recipes must contain zero meat (no pork, beef, chicken, fish, shrimp, etc.). If any meat appears in the ingredients, IGNORE it completely — do not use it in any recipe.',
+      lowCal:     '[MANDATORY LOW-CAL] Every dish must be ≤300 calories. Use minimal oil and sugar.',
+      noSpicy:    '[MANDATORY NO SPICY] Absolutely no chili, pepper, or any spicy ingredients in any recipe or step. If chili appears in ingredients, IGNORE it.',
+      noSeafood:  '[MANDATORY NO SEAFOOD] No fish, shrimp, crab or shellfish. Ignore any seafood in ingredients.',
+      noNuts:     '[MANDATORY NO NUTS] No peanuts, cashews, walnuts or any nuts. Ignore any nuts in ingredients.'
+    },
+    fr: {
+      vegetarian: '[VÉGÉTARIEN OBLIGATOIRE] Aucune viande dans aucune recette. Ignorer toute viande dans les ingrédients.',
+      lowCal:     '[BASSES CALORIES OBLIGATOIRE] Chaque plat ≤300 cal.',
+      noSpicy:    '[NON ÉPICÉ OBLIGATOIRE] Aucun piment ni épice forte. Ignorer les piments dans les ingrédients.',
+      noSeafood:  '[SANS FRUITS DE MER OBLIGATOIRE] Ignorer tous les fruits de mer.',
+      noNuts:     '[SANS NOIX OBLIGATOIRE] Ignorer tous les fruits à coque.'
+    },
+    es: {
+      vegetarian: '[VEGETARIANO OBLIGATORIO] Ninguna carne en ninguna receta. Ignorar cualquier carne en los ingredientes.',
+      lowCal:     '[BAJAS CALORÍAS OBLIGATORIO] Cada plato ≤300 calorías.',
+      noSpicy:    '[SIN PICANTE OBLIGATORIO] Ningún chile ni especia picante. Ignorar chiles en los ingredientes.',
+      noSeafood:  '[SIN MARISCOS OBLIGATORIO] Ignorar todos los mariscos.',
+      noNuts:     '[SIN FRUTOS SECOS OBLIGATORIO] Ignorar todos los frutos secos.'
+    }
   };
+
   const styleNames = {
     zh: { stirFry:'炒菜', soup:'汤/煲', steam:'蒸菜', cold:'凉拌', noodle:'面食', any:'' },
     en: { stirFry:'Stir-fry', soup:'Soup/Stew', steam:'Steamed', cold:'Salad', noodle:'Noodles', any:'' },
@@ -157,88 +178,133 @@ function buildDetectAndGeneratePrompt(lang, opts = {}) {
 
   const ld = dietaryRules[lang] || dietaryRules.zh;
   const ls = styleNames[lang] || styleNames.zh;
-  const dietLines = dietary.filter(d => ld[d]).map(d => `- ${ld[d]}`);
+  const dietLines = dietary.filter(d => ld[d]).map(d => ld[d]);
   const styleLine = style && ls[style] ? ls[style] : '';
 
+  const condimentRule = {
+    zh: condiments
+      ? `【调料限制】只能使用以下调料，其他调料一律不得出现在步骤中：${condiments.join('、')}`
+      : '基础调料（盐、油、酱油、醋、葱姜蒜）可用',
+    en: condiments
+      ? `[CONDIMENT RESTRICTION] Only use these condiments — no others: ${condiments.join(', ')}`
+      : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available',
+    fr: condiments
+      ? `[RESTRICTION CONDIMENTS] Utiliser uniquement : ${condiments.join(', ')}`
+      : 'Condiments de base disponibles',
+    es: condiments
+      ? `[RESTRICCIÓN CONDIMENTOS] Solo usar: ${condiments.join(', ')}`
+      : 'Condimentos básicos disponibles'
+  };
+
   const prompts = {
-    zh: `请仔细观察这张图片，识别出所有可见的食材。
+    zh: `请仔细观察图片，识别所有可见食材。
 
-然后根据识别到的食材，推荐3道适合${servings}人份的菜谱。
+然后根据食材推荐3道${servings}人份菜谱。
 
-规则：
-1. 只使用图片中看到的食材（盐油酱醋葱姜蒜等基础调料默认有）
-2. 去除语义重复（番茄=西红柿只保留一个）
-3. 3道菜风格不同
-4. 每道菜30分钟内完成
-5. 估算每道菜的卡路里（返回纯数字，单位卡）
-6. 估算每道菜的烹饪时间（返回纯数字，单位分钟）
-7. 中文回复
-${dietLines.length ? '8. 饮食限制：\n' + dietLines.join('\n') : ''}
-${styleLine ? '烹饪偏好：' + styleLine + '（至少1道）' : ''}
+${dietLines.length ? '⚠️ 以下限制优先级最高，必须严格遵守，食材和限制冲突时以限制为准：
+' + dietLines.map(r=>'• '+r).join('
+') + '
 
-严格按JSON回复，不要其他文字。search_query字段是用于在B站/YouTube搜索该菜谱教程的关键词（如"番茄炒蛋 做法"）：
+' : ''}规则：
+1. 只使用图片食材
+2. 去除语义重复（番茄=西红柿）
+3. 3道风格不同，每道≤30分钟
+4. 估算卡路里和时间（纯数字）
+5. ${condimentRule.zh}
+6. 步骤里只能用已列出的食材和允许的调料，不能凭空添加其他材料
+${styleLine ? '7. 烹饪偏好：' + styleLine + '（至少1道）' : ''}
+
+JSON回复（search_query为B站/YouTube搜索词）：
 {"ingredients":["食材1","食材2"],"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单","calories":250,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3","步骤4","步骤5"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":20,"difficulty":"中等","calories":300,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":25,"difficulty":"简单","calories":200,"ingredients":["食材1"],"steps":["步骤1","步骤2","步骤3"],"tip":"技巧","search_query":"菜名 做法"}]}`,
 
-    en: `Look at this image carefully and identify all visible ingredients.
+    en: `Carefully look at the image and identify all visible ingredients.
+Suggest 3 recipes for ${servings} people.
 
-Then suggest 3 recipes for ${servings} people using those ingredients.
+${dietLines.length ? '⚠️ HIGHEST PRIORITY — MANDATORY RESTRICTIONS (override ingredient list):
+' + dietLines.map(r=>'• '+r).join('
+') + '
 
-Rules:
-1. Only use visible ingredients (salt, oil, soy sauce, vinegar, garlic, ginger available)
+' : ''}Rules:
+1. Only use visible ingredients
 2. Deduplicate synonyms
-3. Vary styles
-4. Each dish ≤30 min
-5. Estimate calories per dish (pure number, in cal)
-6. Estimate cooking time per dish (pure number, in minutes)
-7. Reply in English
-${dietLines.length ? '8. Dietary:\n' + dietLines.join('\n') : ''}
-${styleLine ? 'Style preference: ' + styleLine + ' (at least 1)' : ''}
+3. 3 different styles, each ≤30 min
+4. Estimate calories and time (pure numbers)
+5. ${condimentRule.en}
+6. Steps must only use listed ingredients and allowed condiments
+${styleLine ? '7. Style preference: ' + styleLine + ' (at least 1)' : ''}
 
-Reply strictly in JSON. search_query is a YouTube search keyword for the recipe (e.g. "tomato egg stir fry recipe"):
+JSON (search_query = YouTube search keyword):
 {"ingredients":["ing1","ing2"],"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy","calories":250,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3","Step 4","Step 5"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":20,"difficulty":"Medium","calories":300,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":25,"difficulty":"Easy","calories":200,"ingredients":["ing1"],"steps":["Step 1","Step 2","Step 3"],"tip":"Tip","search_query":"Name recipe"}]}`,
 
-    fr: `Observez cette image et identifiez tous les ingrédients visibles.
+    fr: `Observez l'image et identifiez les ingrédients.
+3 recettes pour ${servings} personnes.
 
-Suggérez 3 recettes pour ${servings} personnes.
+${dietLines.length ? '⚠️ RESTRICTIONS OBLIGATOIRES (priorité maximale):
+' + dietLines.map(r=>'• '+r).join('
+') + '
 
-Règles : 1. Uniquement ingrédients visibles 2. Dédupliquer 3. Varier styles 4. ≤30 min 5. Estimer calories (nombre pur) 6. Estimer temps (nombre pur, minutes) 7. En français
-${dietLines.length ? '8. Régime :\n' + dietLines.join('\n') : ''}
+' : ''}Règles: ingrédients visibles, pas de doublons, styles variés, ≤30min, estimer calories/temps.
+${condimentRule.fr}
 ${styleLine ? 'Style : ' + styleLine : ''}
 
-JSON strict :
-{"ingredients":["ing1"],"recipes":[{"name":"Nom","time_min":15,"difficulty":"Facile","calories":250,"ingredients":["ing1"],"steps":["Étape 1"],"tip":"Conseil"},{"name":"Nom","time_min":20,"difficulty":"Moyen","calories":300,"ingredients":["ing1"],"steps":["Étape 1"],"tip":"Conseil"},{"name":"Nom","time_min":25,"difficulty":"Facile","calories":200,"ingredients":["ing1"],"steps":["Étape 1"],"tip":"Conseil"}]}`,
+JSON (search_query = mot-clé YouTube):
+{"ingredients":["ing1"],"recipes":[{"name":"Nom","time_min":15,"difficulty":"Facile","calories":250,"ingredients":["ing1"],"steps":["Étape 1","Étape 2","Étape 3"],"tip":"Conseil","search_query":"Nom recette"},{"name":"Nom","time_min":20,"difficulty":"Moyen","calories":300,"ingredients":["ing1"],"steps":["Étape 1","Étape 2","Étape 3"],"tip":"Conseil","search_query":"Nom recette"},{"name":"Nom","time_min":25,"difficulty":"Facile","calories":200,"ingredients":["ing1"],"steps":["Étape 1","Étape 2","Étape 3"],"tip":"Conseil","search_query":"Nom recette"}]}`,
 
-    es: `Observe esta imagen e identifique todos los ingredientes visibles.
+    es: `Observe la imagen e identifique los ingredientes.
+3 recetas para ${servings} personas.
 
-Sugiera 3 recetas para ${servings} personas.
+${dietLines.length ? '⚠️ RESTRICCIONES OBLIGATORIAS (prioridad máxima):
+' + dietLines.map(r=>'• '+r).join('
+') + '
 
-Reglas: 1. Solo ingredientes visibles 2. Deduplicar 3. Variar estilos 4. ≤30 min 5. Estimar calorías (número puro) 6. Estimar tiempo (número puro, minutos) 7. En español
-${dietLines.length ? '8. Dieta:\n' + dietLines.join('\n') : ''}
+' : ''}Reglas: solo ingredientes visibles, sin duplicados, estilos variados, ≤30min, estimar calorías/tiempo.
+${condimentRule.es}
 ${styleLine ? 'Estilo: ' + styleLine : ''}
 
-JSON estricto. search_query = palabra clave YouTube para buscar la receta (ej: "huevos tomate receta"):
-{"ingredients":["ing1"],"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil","calories":250,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":20,"difficulty":"Medio","calories":300,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":25,"difficulty":"Fácil","calories":200,"ingredients":["ing1"],"steps":["Paso 1"],"tip":"Consejo","search_query":"Nombre receta"}]}`
+JSON (search_query = búsqueda YouTube):
+{"ingredients":["ing1"],"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil","calories":250,"ingredients":["ing1"],"steps":["Paso 1","Paso 2","Paso 3"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":20,"difficulty":"Medio","calories":300,"ingredients":["ing1"],"steps":["Paso 1","Paso 2","Paso 3"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":25,"difficulty":"Fácil","calories":200,"ingredients":["ing1"],"steps":["Paso 1","Paso 2","Paso 3"],"tip":"Consejo","search_query":"Nombre receta"}]}`
   };
   return prompts[lang] || prompts.zh;
 }
 
+
 function buildTextGeneratePrompt(ingredients, lang, opts = {}) {
-  const condimentLine = opts.condiments && opts.condiments.length > 0
-    ? (lang === 'zh' ? `可用调料：${opts.condiments.join('、')}` 
-       : lang === 'fr' ? `Condiments disponibles : ${opts.condiments.join(', ')}`
-       : lang === 'es' ? `Condimentos disponibles: ${opts.condiments.join(', ')}`
-       : `Available condiments: ${opts.condiments.join(', ')}`)
-    : (lang === 'zh' ? '基础调料（盐、油、酱油、醋、葱姜蒜）默认有' : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available');
   const servings = opts.servings || '1-2';
   const dietary = opts.dietary || [];
   const style = opts.style || '';
+  const condiments = opts.condiments && opts.condiments.length > 0 ? opts.condiments : null;
 
   const dietaryRules = {
-    zh: { vegetarian:'素食', lowCal:'低卡（≤300卡）', noSpicy:'不辣', noSeafood:'无海鲜', noNuts:'无坚果' },
-    en: { vegetarian:'Vegetarian', lowCal:'Low-cal (≤300cal)', noSpicy:'Not spicy', noSeafood:'No seafood', noNuts:'No nuts' },
-    fr: { vegetarian:'Végétarien', lowCal:'Léger', noSpicy:'Non épicé', noSeafood:'Sans mer', noNuts:'Sans noix' },
-    es: { vegetarian:'Vegetariano', lowCal:'Bajo calorías', noSpicy:'Sin picante', noSeafood:'Sin mariscos', noNuts:'Sin nueces' }
+    zh: {
+      vegetarian: '【强制素食】不含任何肉类。食材列表中有肉类的必须忽略，不得出现在任何菜谱中。',
+      lowCal:     '【强制低卡】每道菜≤300卡，少油少糖。',
+      noSpicy:    '【强制不辣】绝对不能使用辣椒、花椒等辛辣调料。食材中有辣椒必须忽略。',
+      noSeafood:  '【强制无海鲜】不含鱼虾蟹贝。食材中有海鲜必须忽略。',
+      noNuts:     '【强制无坚果】不含花生腰果等坚果。食材中有坚果必须忽略。'
+    },
+    en: {
+      vegetarian: '[MANDATORY VEGETARIAN] No meat whatsoever. Ignore any meat ingredients.',
+      lowCal:     '[MANDATORY LOW-CAL] Every dish ≤300 cal. Minimal oil/sugar.',
+      noSpicy:    '[MANDATORY NO SPICY] No chili or spicy ingredients. Ignore any chili in the list.',
+      noSeafood:  '[MANDATORY NO SEAFOOD] No fish/shrimp/shellfish. Ignore any seafood.',
+      noNuts:     '[MANDATORY NO NUTS] No nuts of any kind. Ignore any nuts.'
+    },
+    fr: {
+      vegetarian: '[VÉGÉTARIEN OBLIGATOIRE] Aucune viande. Ignorer la viande.',
+      lowCal:     '[BASSES CALORIES OBLIGATOIRE] ≤300 cal par plat.',
+      noSpicy:    '[NON ÉPICÉ OBLIGATOIRE] Aucun piment. Ignorer les piments.',
+      noSeafood:  '[SANS FRUITS DE MER OBLIGATOIRE] Ignorer les fruits de mer.',
+      noNuts:     '[SANS NOIX OBLIGATOIRE] Ignorer les noix.'
+    },
+    es: {
+      vegetarian: '[VEGETARIANO OBLIGATORIO] Sin carne. Ignorar carnes.',
+      lowCal:     '[BAJAS CALORÍAS OBLIGATORIO] ≤300 cal por plato.',
+      noSpicy:    '[SIN PICANTE OBLIGATORIO] Sin chile. Ignorar chiles.',
+      noSeafood:  '[SIN MARISCOS OBLIGATORIO] Ignorar mariscos.',
+      noNuts:     '[SIN FRUTOS SECOS OBLIGATORIO] Ignorar frutos secos.'
+    }
   };
+
   const styleNames = {
     zh: { stirFry:'炒菜', soup:'汤/煲', steam:'蒸菜', cold:'凉拌', noodle:'面食', any:'' },
     en: { stirFry:'Stir-fry', soup:'Soup', steam:'Steamed', cold:'Salad', noodle:'Noodles', any:'' },
@@ -248,32 +314,81 @@ function buildTextGeneratePrompt(ingredients, lang, opts = {}) {
 
   const ld = dietaryRules[lang] || dietaryRules.zh;
   const ls = styleNames[lang] || styleNames.zh;
-  const dietLines = dietary.filter(d => ld[d]).map(d => `- ${ld[d]}`);
+  const dietLines = dietary.filter(d => ld[d]).map(d => ld[d]);
   const styleLine = style && ls[style] ? ls[style] : '';
+
+  const condimentRule = {
+    zh: condiments
+      ? `【调料限制】步骤中只能使用这些调料，其他调料一律禁止：${condiments.join('、')}`
+      : '基础调料（盐、油、酱油、醋、葱姜蒜）可用',
+    en: condiments
+      ? `[CONDIMENT RESTRICTION] Only these condiments allowed in steps — nothing else: ${condiments.join(', ')}`
+      : 'Basic condiments (salt, oil, soy sauce, vinegar, garlic) available',
+    fr: condiments
+      ? `[RESTRICTION CONDIMENTS] Uniquement : ${condiments.join(', ')}`
+      : 'Condiments de base disponibles',
+    es: condiments
+      ? `[RESTRICCIÓN CONDIMENTOS] Solo: ${condiments.join(', ')}`
+      : 'Condimentos básicos disponibles'
+  };
+
+  const jsonFmt = {
+    zh: '{"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单/中等/较难","calories":250,"ingredients":["食材"],"steps":["步骤1","步骤2"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":20,"difficulty":"中等","calories":300,"ingredients":["食材"],"steps":["步骤1","步骤2"],"tip":"技巧","search_query":"菜名 做法"},{"name":"菜名","time_min":25,"difficulty":"简单","calories":200,"ingredients":["食材"],"steps":["步骤1","步骤2"],"tip":"技巧","search_query":"菜名 做法"}]}',
+    en: '{"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy/Medium/Hard","calories":250,"ingredients":["ing"],"steps":["Step 1","Step 2"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":20,"difficulty":"Medium","calories":300,"ingredients":["ing"],"steps":["Step 1","Step 2"],"tip":"Tip","search_query":"Name recipe"},{"name":"Name","time_min":25,"difficulty":"Easy","calories":200,"ingredients":["ing"],"steps":["Step 1","Step 2"],"tip":"Tip","search_query":"Name recipe"}]}',
+    fr: '{"recipes":[{"name":"Nom","time_min":15,"difficulty":"Facile/Moyen/Difficile","calories":250,"ingredients":["ing"],"steps":["Étape 1","Étape 2"],"tip":"Conseil","search_query":"Nom recette"},{"name":"Nom","time_min":20,"difficulty":"Moyen","calories":300,"ingredients":["ing"],"steps":["Étape 1","Étape 2"],"tip":"Conseil","search_query":"Nom recette"},{"name":"Nom","time_min":25,"difficulty":"Facile","calories":200,"ingredients":["ing"],"steps":["Étape 1","Étape 2"],"tip":"Conseil","search_query":"Nom recette"}]}',
+    es: '{"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil/Medio/Difícil","calories":250,"ingredients":["ing"],"steps":["Paso 1","Paso 2"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":20,"difficulty":"Medio","calories":300,"ingredients":["ing"],"steps":["Paso 1","Paso 2"],"tip":"Consejo","search_query":"Nombre receta"},{"name":"Nombre","time_min":25,"difficulty":"Fácil","calories":200,"ingredients":["ing"],"steps":["Paso 1","Paso 2"],"tip":"Consejo","search_query":"Nombre receta"}]}'
+  };
 
   const prompts = {
     zh: `食材：${ingredients.join('、')}
-推荐3道${servings}人份菜谱，30分钟内。${condimentLine}。3道风格不同。卡路里和时间返回纯数字。
-${dietLines.length ? '限制：' + dietLines.join('，') : ''}${styleLine ? ' 偏好：' + styleLine : ''}
-JSON：{"recipes":[{"name":"菜名","time_min":15,"difficulty":"简单/中等/较难","calories":250,"ingredients":["食材"],"steps":["步骤1","步骤2"],"tip":"技巧"},...]}`,
+${dietLines.length ? '
+⚠️ 饮食限制（优先级最高，与食材冲突时以限制为准）：
+' + dietLines.map(r=>'• '+r).join('
+') + '
+' : ''}
+规则：推荐3道${servings}人份菜谱，每道≤30分钟，风格不同。卡路里和时间为纯数字。
+${condimentRule.zh}
+步骤里只能用已列出食材和上述允许的调料，不得额外添加。
+${styleLine ? '烹饪偏好：' + styleLine + '（至少1道）' : ''}
+JSON：${jsonFmt.zh}`,
 
     en: `Ingredients: ${ingredients.join(', ')}
-3 recipes for ${servings} people, ≤30min. ${condimentLine}. Vary styles. Calories and time as pure numbers.
-${dietLines.length ? 'Dietary: ' + dietLines.join(', ') : ''}${styleLine ? ' Style: ' + styleLine : ''}
-JSON: {"recipes":[{"name":"Name","time_min":15,"difficulty":"Easy/Medium/Hard","calories":250,"ingredients":["ing"],"steps":["Step 1"],"tip":"Tip"},...]}`,
+${dietLines.length ? '
+⚠️ MANDATORY RESTRICTIONS (highest priority, override ingredients):
+' + dietLines.map(r=>'• '+r).join('
+') + '
+' : ''}
+Rules: 3 recipes for ${servings} people, ≤30min each, varied styles. Numbers only for calories/time.
+${condimentRule.en}
+Steps must only use listed ingredients and allowed condiments.
+${styleLine ? 'Style preference: ' + styleLine + ' (at least 1)' : ''}
+JSON: ${jsonFmt.en}`,
 
     fr: `Ingrédients : ${ingredients.join(', ')}
-3 recettes pour ${servings} pers., ≤30min. ${condimentLine}. Varier. Calories et temps en nombres.
-${dietLines.length ? 'Régime : ' + dietLines.join(', ') : ''}${styleLine ? ' Style : ' + styleLine : ''}
-JSON : {"recipes":[{"name":"Nom","time_min":15,"difficulty":"Facile/Moyen/Difficile","calories":250,"ingredients":["ing"],"steps":["Étape"],"tip":"Conseil"},...]}`,
+${dietLines.length ? '
+⚠️ RESTRICTIONS OBLIGATOIRES (priorité absolue):
+' + dietLines.map(r=>'• '+r).join('
+') + '
+' : ''}
+3 recettes ${servings} pers., ≤30min, styles variés. Nombres purs pour cal/temps.
+${condimentRule.fr}${styleLine ? '
+Style : ' + styleLine : ''}
+JSON : ${jsonFmt.fr}`,
 
     es: `Ingredientes: ${ingredients.join(', ')}
-3 recetas para ${servings} pers., ≤30min. ${condimentLine}. Variar. Calorías y tiempo como números.
-${dietLines.length ? 'Dieta: ' + dietLines.join(', ') : ''}${styleLine ? ' Estilo: ' + styleLine : ''}
-JSON: {"recipes":[{"name":"Nombre","time_min":15,"difficulty":"Fácil/Medio/Difícil","calories":250,"ingredients":["ing"],"steps":["Paso"],"tip":"Consejo"},...]}`,
+${dietLines.length ? '
+⚠️ RESTRICCIONES OBLIGATORIAS (máxima prioridad):
+' + dietLines.map(r=>'• '+r).join('
+') + '
+' : ''}
+3 recetas ${servings} pers., ≤30min, estilos variados. Números puros para cal/tiempo.
+${condimentRule.es}${styleLine ? '
+Estilo: ' + styleLine : ''}
+JSON: ${jsonFmt.es}`
   };
   return prompts[lang] || prompts.zh;
 }
+
 
 function buildSuggestPrompt(ingredients, lang) {
   const prompts = {
