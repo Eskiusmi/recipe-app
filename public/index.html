@@ -1047,11 +1047,51 @@ function loadCondiments() {
   if (saved) return JSON.parse(saved);
   return [...(t().defaultCondiments || [])];
 }
+// 首次引导专用 — 保存后自动继续生成
+function openCondimentsForSetup() {
+  tempCondiments = [...userCondiments];
+  renderCondimentBody();
+  // 改标题和副标题为引导语气
+  const tx = t();
+  const setupTitles = {
+    zh: { title: '先设置一下<em>调料柜</em>', subtitle: '告诉 AI 你家有哪些调料，这样生成的菜谱才准确。不确定的直接跳过也没关系。' },
+    en: { title: 'Set up your <em>pantry</em> first', subtitle: 'Tell AI what condiments you have for more accurate recipes. You can skip if unsure.' },
+    fr: { title: 'Configurez votre <em>garde-manger</em>', subtitle: 'Indiquez vos condiments pour des recettes plus précises. Vous pouvez ignorer si incertain.' },
+    es: { title: 'Configura tu <em>despensa</em> primero', subtitle: 'Indica tus condimentos para recetas más precisas. Puedes omitir si no estás seguro.' }
+  };
+  const s = setupTitles[currentLang] || setupTitles.zh;
+  document.getElementById('t-condTitle').innerHTML = s.title;
+  document.getElementById('t-condSubtitle').textContent = s.subtitle;
+  // 保存按钮改成"确定，生成菜谱"
+  const saveBtn = document.querySelector('.cond-save-btn');
+  if (saveBtn) {
+    const labels = { zh:'确定，帮我想菜谱', en:'Done, generate recipes', fr:'OK, générer', es:'Listo, generar' };
+    saveBtn.textContent = labels[currentLang] || labels.zh;
+    saveBtn.onclick = saveCondimentsAndGenerate;
+  }
+  document.getElementById('condimentModal').style.display = 'flex';
+}
+
+function saveCondimentsAndGenerate() {
+  localStorage.setItem(CONDIMENTS_KEY + '_' + currentLang, JSON.stringify(tempCondiments));
+  userCondiments = [...tempCondiments];
+  localStorage.setItem(CONDIMENTS_SETUP_KEY, '1');
+  updateCondimentBadge();
+  closeCondiments();
+  // 恢复保存按钮
+  const saveBtn = document.querySelector('.cond-save-btn');
+  if (saveBtn) { saveBtn.textContent = t().condSave; saveBtn.onclick = saveCondiments; }
+  // 继续生成
+  generateRecipes();
+}
+
 function saveCondiments() {
   localStorage.setItem(CONDIMENTS_KEY + '_' + currentLang, JSON.stringify(tempCondiments));
   userCondiments = [...tempCondiments];
   updateCondimentBadge();
   closeCondiments();
+  // 恢复标题
+  updateCondimentI18n();
 }
 function openCondiments() {
   tempCondiments = [...userCondiments];
@@ -1420,6 +1460,15 @@ async function runFromPhoto() {
     if (!res.ok) throw { type:'network' };
     const data = await res.json(); if (!data.success) throw { type:'api', msg: data.error };
     ingredients = [...data.data.ingredients];
+
+    // 第一次生成前引导设置调料
+    if (!localStorage.getItem(CONDIMENTS_SETUP_KEY)) {
+      hideLoading();
+      openCondimentsForSetup();
+      // 保存后自动触发生成（改 saveCondimentsAndGenerate 直接调 generateRecipes）
+      return;
+    }
+
     renderResult(data.data, true); showScreen('screen-result');
   } catch (err) {
     if (reqId !== currentRequestId) return;
@@ -1427,8 +1476,17 @@ async function runFromPhoto() {
   } finally { if (reqId === currentRequestId) hideLoading(); }
 }
 
+const CONDIMENTS_SETUP_KEY = 'fridgy_condiments_setup';
+
 async function generateRecipes() {
   if (isLoading || !ingredients.length) { if (!ingredients.length) showError(t().errEmpty, []); return; }
+
+  // 第一次生成前强制引导设置调料
+  if (!localStorage.getItem(CONDIMENTS_SETUP_KEY)) {
+    openCondimentsForSetup();
+    return;
+  }
+
   hideError(); showScreen(null); const tx = t(); showLoading(tx.loadingGenerate, tx.loadingGenerateSub); startTips();
   const reqId = ++currentRequestId;
   try {
